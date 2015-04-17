@@ -1,0 +1,2 @@
+# OttoClassification
+Kaggle Competition. 
