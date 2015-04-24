@@ -1,5 +1,5 @@
 #Load the files 
-
+setwd('D:/Userfiles/asarapure/Documents/RStudio/Projects/OttoClassification')
 train = read.csv('train.csv')
 test = read.csv('test.csv')
 sub = read.csv('sampleSubmission.csv')
@@ -11,6 +11,10 @@ library(randomForest)
 library(caTools)
 library(rpart)
 library(rpart.plot)
+library(ROCR)
+library(caret)
+library(nnet)
+library(e1071)
 
 
 
@@ -18,15 +22,17 @@ for (j in 0:2){
   for( i in 0:3){
     numTrees = 100 + ( 10 * i)
     ndSize = 1 + (1 * j)
-    spl = sample.split(dtmTrain$Pop , SplitRatio = 0.7)
-    train.data = subset(dtmTrain, spl == TRUE)
-    test.data = subset(dtmTrain , spl == FALSE)
+    spl = sample.split(train$target , SplitRatio = 0.4)
+    train.data = subset(train, spl == TRUE)
+    test.data = subset(train,  spl == FALSE)
     
-    rftrees = randomForest(as.factor(Pop) ~ NewsDesk + secName + subSName + wrdCount + weekday + isSaturday + isSunday + hour, mtry = 2,
-                           ntree = numTrees , data = train.data , nodesize = ndSize)
-    predTrees = predict(rftrees , newdata = test.data)
-    RMSES_sum = sum(sqrt((predTrees - test.data$Pop)^2))
-    print(paste('trees are ' , numTrees , 'nodesize is ' , ndSize , 'RMSE is ', RMSES_sum))
+    rf.Model = randomForest(target ~ . , data = train.data[,-1] , mtry = 40 , nodesize = 5, ntree = 101)
+    rf.Pred = predict(rf.Model , newdata = test.data[,-1])
+    
+    rocr.pred = prediction(predTrees , test.data$target)
+    auc = as.numeric(performance(rocr.pred, 'auc')@y.values)
+    RMSES_sum = sum(sqrt((rf.Pred - test.data$target)^2))
+    print(paste('RMSE is ', RMSES_sum, ' and auc is ' , auc))
   }
 }
 
@@ -38,14 +44,33 @@ train.data = subset(train, spl == TRUE)
 test.data = subset(train , spl == FALSE)
 
 
-rf.Model = randomForest(target ~ . , data = train[-1] , mtry = 60 , nodesize = 5, ntree = 501)
-rf.Pred = predict(rf.Model , newdata = test[,-1])
+rf.Model = randomForest(target ~ . , data = train.data[,-1] , mtry = 60 , nodesize = 5, ntree = 501)
+rf.Pred = predict(rf.Model , newdata = test.data[,-1])
 table(rf.Pred, test.data$target)
 
 #Removing id variable. 
 train = train[,-1]
 tuneRF(train.data[,-94], train.data[,94] , ntreeTry = 50, stepFactor = 2  ,
               trace = TRUE , plot = TRUE , doBest = FALSE)
+
+
+#Neural network 
+
+nnet.m = nnet(target ~ . , data = train.data[,-1] , size = 9 , MaxNWts = 10000, maxit = 200)
+#size is the number of units in the hidden layer. maxit is the number of iterations. 
+#I am guessing size should somewhat be close to the number of classes for all classes
+# to be predicted. 
+net.pred = predict(nnet.m , test.data[,-1], type = 'class')
+
+
+
+#SVM
+
+
+svm.m = svm(target ~ . , data= train.data[,-1] , type = 'C-classification' , kernel = 'linear')
+svm.pred= predict(svm.m , newdata = test.data[,-1])
+
+#svm does a good job for some of the classes. 
 
 
 
